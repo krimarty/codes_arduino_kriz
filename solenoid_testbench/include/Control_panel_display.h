@@ -74,23 +74,48 @@ public:
     }
 
     void showCurrent(float current) {
-        _display.clearDisplay();
-        _display.setTextSize(2);
+    _display.setTextSize(1);
+    _display.setTextColor(SH110X_WHITE);
+    _display.setCursor(0, 0);
+    _display.print("Current: ");
+    _display.print(current, 2);
+    _display.println(" A");
+    _display.display();
+    }
+
+    void showVoltage(float voltage) {
+        _display.setTextSize(1);
         _display.setTextColor(SH110X_WHITE);
-        _display.setCursor(0, 0);
-        _display.print("Current:");
-        _display.setCursor(0, 20);
-        _display.print(current, 2);
-        _display.println(" A");
+        _display.setCursor(0, 12);
+        _display.print("Voltage: ");
+        _display.print(voltage, 2);
+        _display.println(" V");
         _display.display();
     }
 
-    void showMode(const char* mode) {
+    void showDelay(uint32_t delayMs) {
+        _display.fillRect(0, 24, 128, 10, SH110X_BLACK);
+
         _display.setTextSize(1);
         _display.setTextColor(SH110X_WHITE);
-        _display.setCursor(0, 50);
+        _display.setCursor(0, 24);
+        _display.print("Delay: ");
+        _display.print(delayMs);
+        _display.println(" ms");
+
+        _display.display();
+    }
+
+
+    void showMode(const char* mode) {
+        _display.fillRect(0, 36, 128, 10, SH110X_BLACK);
+
+        _display.setTextSize(1);
+        _display.setTextColor(SH110X_WHITE);
+        _display.setCursor(0, 36);
         _display.print("Mode: ");
         _display.print(mode);
+
         _display.display();
     }
 
