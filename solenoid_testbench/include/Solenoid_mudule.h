@@ -7,8 +7,8 @@ constexpr int DEFAULT_ADC_READY_PIN  = 20;
 constexpr int DEFAULT_IMEAS_PIN      = 28;
 
 constexpr float VREF        = 3.3;
-constexpr int   ADC_RES     = 4095;
-constexpr float SENSOR_ZERO = VREF / 2;
+constexpr int   ADC_RES     = 1023;
+constexpr float SENSOR_ZERO = 0.1 * VREF;
 constexpr float SENSITIVITY = 0.2;    // TMCS1107A3U 200 mV/A
 
 class SolenoidModule {

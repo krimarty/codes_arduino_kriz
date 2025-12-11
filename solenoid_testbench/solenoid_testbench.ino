@@ -13,6 +13,7 @@
 #include "Wire.h"
 #include "include/Control_panel_display.h"
 #include "include/Solenoid_mudule.h"
+#include "include/ADS1115.h"
 
 // State machine
 enum class State {
@@ -34,6 +35,7 @@ constexpr unsigned int MAX_DELAY_MS   = 500; // [ms] maximum delay for knifes ac
 
 ControlPanel panel;
 SolenoidModule solenoid;
+ADS1115Module adc;
 
 bool error = false;
 int knifeDelayMs = 0;
@@ -58,7 +60,8 @@ int calculateKnifeDelayMs(int OldDelayMs)
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
+
+  adc.begin();
 
   panel.beginDisplay();
   panel.showMode("Manual");
@@ -88,13 +91,16 @@ void loop() {
 
   knifeDelayMs = calculateKnifeDelayMs(knifeDelayMs);
 
-  panel.showCurrent(6.9);
-  panel.showVoltage(12);
+  float solenoid_current = solenoid.readCurrent();
+  panel.showCurrent(solenoid_current);
+
+  float volt_camera_box = adc.readVoltageCameraBox();
+  panel.showVoltage(volt_camera_box);
 
   switch (currentState) {
     case State::WAITING_FOR_START:
       // Wait for start condition
-      if (true)  // Az prijde prikaz knife enable
+      if (volt_camera_box > 10)
       {
         startTime = millis();
         switch (currentMode)
@@ -145,7 +151,5 @@ void loop() {
 
       break;    
   }
-  
-
 
 }

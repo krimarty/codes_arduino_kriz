@@ -74,16 +74,20 @@ public:
     }
 
     void showCurrent(float current) {
+    _display.fillRect(0, 0, 128, 10, SH110X_BLACK);
+
     _display.setTextSize(1);
     _display.setTextColor(SH110X_WHITE);
     _display.setCursor(0, 0);
     _display.print("Current: ");
-    _display.print(current, 2);
+    _display.print(current, 1);
     _display.println(" A");
     _display.display();
     }
 
     void showVoltage(float voltage) {
+        _display.fillRect(0, 12, 128, 10, SH110X_BLACK);
+
         _display.setTextSize(1);
         _display.setTextColor(SH110X_WHITE);
         _display.setCursor(0, 12);
