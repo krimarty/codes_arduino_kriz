@@ -20,6 +20,7 @@ enum class State {
   WAITING_FOR_START,
   DELAY,
   ACTIVATE_KNIFES,
+  DELAY_CLOSING,
 };
 State currentState = State::WAITING_FOR_START;
 
@@ -43,6 +44,8 @@ int knifeDelayMs = 0;
 // Timer
 unsigned long startTime = 0;
 unsigned long delayTime = knifeDelayMs;
+volatile bool alarm_fired = false;
+
 
 int calculateKnifeDelayMs(int OldDelayMs)
 {
@@ -56,6 +59,33 @@ int calculateKnifeDelayMs(int OldDelayMs)
   panel.showDelay(OldDelayMs);
   return OldDelayMs;
 }
+
+int64_t alarm_callback(alarm_id_t id, void *user_data)
+{
+  alarm_fired = true;
+
+  if (currentState == State::DELAY)
+  {
+    solenoid.KnifesClose();
+    panel.setLedStatus(true);    
+    currentState = State::ACTIVATE_KNIFES;
+  }
+
+  if (currentState == State::DELAY_CLOSING)
+  {
+    solenoid.KnifesOpen(); 
+    panel.setLedStatus(false);   
+    currentState = State::WAITING_FOR_START;
+  }
+
+  return 0;
+}
+
+void startTimerMs(uint32_t ms)
+{
+  add_alarm_in_ms(ms, alarm_callback, NULL, false);
+}
+
 
 
 void setup() {
@@ -94,24 +124,26 @@ void loop() {
   float solenoid_current = solenoid.readCurrent();
   panel.showCurrent(solenoid_current);
 
-  float volt_camera_box = adc.readVoltageCameraBox();
-  panel.showVoltage(volt_camera_box);
-
   switch (currentState) {
     case State::WAITING_FOR_START:
+      Serial.println("Waiting for start...");
       // Wait for start condition
-      if (volt_camera_box > 10)
+      if (solenoid_current > 0.1)
       {
         startTime = millis();
         switch (currentMode)
         {
         case Modes::MANUAL:
           delayTime = knifeDelayMs;
+          solenoid.KnifesBeetween();
+          startTimerMs(delayTime);
           currentState = State::DELAY;
           break;
 
         case Modes::RANDOM:
           delayTime = random(0, MAX_DELAY_MS);
+          solenoid.KnifesBeetween();
+          startTimerMs(delayTime);
           currentState = State::DELAY;
           break; 
 
@@ -119,12 +151,15 @@ void loop() {
           if (random(0, 100) < 90)
           {
             delayTime = knifeDelayMs;
+            solenoid.KnifesBeetween();
+            startTimerMs(delayTime);
             currentState = State::DELAY;
           }
           else
           {
             // Skip activation
-            currentState = State::WAITING_FOR_START;
+            solenoid.KnifesBeetween();
+            currentState = State::ACTIVATE_KNIFES;
           }
           break;
         }
@@ -133,21 +168,48 @@ void loop() {
       break;
 
     case State::DELAY:
-       if (millis() - startTime >= delayTime)
-       {
-          solenoid.KnifesActive(true);
-          panel.setLedStatus(true);
-          currentState = State::ACTIVATE_KNIFES;
-       }
+      Serial.println("Delay...");
+      //solenoid.KnifesBeetween();
+      //if (millis() - startTime >= delayTime)
+      //{
+      //  //solenoid.KnifesOpen();
+      //  panel.setLedStatus(true);
+      //  currentState = State::ACTIVATE_KNIFES;
+      //}
       break;
 
     case State::ACTIVATE_KNIFES:
-      if (false) // Az odpadne signal knifes enable
+      Serial.println("Activate knifes...");
+      if (solenoid_current < 0.1) // Az odpadne signal knifes enable
       {
-        solenoid.KnifesActive(false);
-        panel.setLedStatus(false);
-        currentState = State::WAITING_FOR_START;
+        startTime = millis();
+        switch (currentMode)
+        {
+        case Modes::MANUAL:
+          delayTime = knifeDelayMs;
+          solenoid.KnifesBeetween();
+          startTimerMs(delayTime);
+          currentState = State::DELAY_CLOSING;
+          break;
+
+        default:
+          delayTime = random(0, MAX_DELAY_MS);
+          solenoid.KnifesBeetween();
+          startTimerMs(delayTime);
+          currentState = State::DELAY_CLOSING;
+          break; 
+        }
       }
+      break;
+
+      case State::DELAY_CLOSING:
+        Serial.println("Delay closing...");
+        //if (millis() - startTime >= delayTime)
+        //{
+        //  solenoid.KnifesClose();
+        //  panel.setLedStatus(false);
+        //  currentState = State::WAITING_FOR_START;
+        //}
 
       break;    
   }
