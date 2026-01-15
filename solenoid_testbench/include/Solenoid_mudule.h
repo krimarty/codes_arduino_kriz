@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-static constexpr bool ACTIVE_LOW = false;   // true = active-low, false = active-high
+static constexpr bool ACTIVE_HIGH = true;   // true = active-low, false = active-high
 
 // Pin assignment
 constexpr int DEFAULT_FB_PIN1         = 21; //open
@@ -21,7 +21,7 @@ private:
 
     static constexpr uint8_t activeLevel(bool active)
     {
-        if constexpr (ACTIVE_LOW)
+        if constexpr (ACTIVE_HIGH)
             return active ? LOW : HIGH;
         else
             return active ? HIGH : LOW;

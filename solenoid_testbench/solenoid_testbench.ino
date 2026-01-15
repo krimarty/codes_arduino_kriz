@@ -53,10 +53,10 @@ int calculateKnifeDelayMs(int OldDelayMs)
   int tmp = (1023 -panel.readPot1()) * MAX_DELAY_MS / 1023;
   if (tmp < (OldDelayMs - offset) || tmp > (OldDelayMs + offset))
   {
-    panel.showDelay(tmp);
+    //panel.showDelay(tmp);
     return tmp;
   }
-  panel.showDelay(OldDelayMs);
+  //panel.showDelay(OldDelayMs);
   return OldDelayMs;
 }
 
@@ -83,13 +83,31 @@ int64_t alarm_callback(alarm_id_t id, void *user_data)
 
 void startTimerMs(uint32_t ms)
 {
+  if (ms == 0)
+  {
+    if (currentState == State::DELAY)
+    {
+      solenoid.KnifesClose();
+      panel.setLedStatus(true);    
+      currentState = State::ACTIVATE_KNIFES;
+    }
+    else if (currentState == State::DELAY_CLOSING)
+    {
+      solenoid.KnifesOpen(); 
+      panel.setLedStatus(false);   
+      currentState = State::WAITING_FOR_START;
+    }
+    return;
+  }
   add_alarm_in_ms(ms, alarm_callback, NULL, false);
 }
 
 
 
 void setup() {
-  Serial.begin(115200);
+  //.begin(115200);
+  //delay(1000);
+  //Serial.println(F("Solenoid Testbench Starting..."));
 
   adc.begin();
 
@@ -100,6 +118,8 @@ void setup() {
 void loop() {
   panel.setLedError(error);
 
+  currentMode = Modes::MANUAL;
+  /*
   if (panel.wasSw1Pressed())
   {
     if (currentMode == Modes::MANUAL)
@@ -118,99 +138,40 @@ void loop() {
       panel.showMode("Manual");
     }
   }
+  */
 
   knifeDelayMs = calculateKnifeDelayMs(knifeDelayMs);
 
   float solenoid_current = solenoid.readCurrent();
-  panel.showCurrent(solenoid_current);
+  //panel.showCurrent(solenoid_current);
+  //Serial.print("Current: "); Serial.print(solenoid_current); Serial.println(" A");
 
   switch (currentState) {
     case State::WAITING_FOR_START:
-      Serial.println("Waiting for start...");
       // Wait for start condition
-      if (solenoid_current > 0.1)
+      if (solenoid_current > 0.13)
       {
-        startTime = millis();
-        switch (currentMode)
-        {
-        case Modes::MANUAL:
-          delayTime = knifeDelayMs;
-          solenoid.KnifesBeetween();
-          startTimerMs(delayTime);
-          currentState = State::DELAY;
-          break;
-
-        case Modes::RANDOM:
-          delayTime = random(0, MAX_DELAY_MS);
-          solenoid.KnifesBeetween();
-          startTimerMs(delayTime);
-          currentState = State::DELAY;
-          break; 
-
-        default:
-          if (random(0, 100) < 90)
-          {
-            delayTime = knifeDelayMs;
-            solenoid.KnifesBeetween();
-            startTimerMs(delayTime);
-            currentState = State::DELAY;
-          }
-          else
-          {
-            // Skip activation
-            solenoid.KnifesBeetween();
-            currentState = State::ACTIVATE_KNIFES;
-          }
-          break;
-        }
-
+        delayTime = knifeDelayMs;
+        solenoid.KnifesBeetween();
+        currentState = State::DELAY;
+        startTimerMs(delayTime);
       }
       break;
 
     case State::DELAY:
-      Serial.println("Delay...");
-      //solenoid.KnifesBeetween();
-      //if (millis() - startTime >= delayTime)
-      //{
-      //  //solenoid.KnifesOpen();
-      //  panel.setLedStatus(true);
-      //  currentState = State::ACTIVATE_KNIFES;
-      //}
       break;
 
     case State::ACTIVATE_KNIFES:
-      Serial.println("Activate knifes...");
-      if (solenoid_current < 0.1) // Az odpadne signal knifes enable
+      if (solenoid_current < 0.13) // Az odpadne signal knifes enable
       {
-        startTime = millis();
-        switch (currentMode)
-        {
-        case Modes::MANUAL:
-          delayTime = knifeDelayMs;
-          solenoid.KnifesBeetween();
-          startTimerMs(delayTime);
-          currentState = State::DELAY_CLOSING;
-          break;
-
-        default:
-          delayTime = random(0, MAX_DELAY_MS);
-          solenoid.KnifesBeetween();
-          startTimerMs(delayTime);
-          currentState = State::DELAY_CLOSING;
-          break; 
-        }
+        delayTime = knifeDelayMs;
+        solenoid.KnifesBeetween();
+        currentState = State::DELAY_CLOSING;
+        startTimerMs(delayTime);
       }
       break;
 
-      case State::DELAY_CLOSING:
-        Serial.println("Delay closing...");
-        //if (millis() - startTime >= delayTime)
-        //{
-        //  solenoid.KnifesClose();
-        //  panel.setLedStatus(false);
-        //  currentState = State::WAITING_FOR_START;
-        //}
-
+    case State::DELAY_CLOSING:
       break;    
   }
 
