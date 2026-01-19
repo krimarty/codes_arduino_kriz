@@ -39,11 +39,13 @@ enum class Modes_Display {
   OFF,
 };
 Modes_Display currentModeDisplay = Modes_Display::OFF;
-constexpr float CURRENT_TRESHOLD = 0.13;  // [A] current threshold for knifes activation
+
+constexpr float CURRENT_TRESHOLD = 0.12;  // [A] current threshold for knifes activation
 constexpr unsigned int JITTER_RANGE   = 20;  // [%] jitter range for JITTER mode
 constexpr unsigned int MAX_DELAY_MS   = 200; // [ms] maximum delay for knifes activation
 constexpr unsigned int N_OF_BOUNCES   = 3;   // number of bounces for BOUNCING modes
 constexpr unsigned int BOUNCE_TIME = 20;  // [ms] time between bounces
+constexpr unsigned int CHANCE_OF_ERROR = 50; // [%] chance of error in REAL mode
 
 ControlPanel panel;
 SolenoidModule solenoid;
@@ -53,7 +55,7 @@ bool error = false;
 unsigned int knifeDelayMs = 0;
 float solenoid_current = 0.0;
 unsigned int bounce_count = 0;
-bool bouncing_in_progress = false;
+bool bouncing_in_progress = true;
 
 // Timer
 unsigned long startTime = 0;
@@ -164,11 +166,13 @@ void setup() {
 }
 
 void loop() {
-  panel.setLedError(error);
+  
 
   // User 
   if (panel.wasSw1Pressed()) {display_next_mode();}
   if (currentModeDisplay != Modes_Display::OFF) {display_state_machine();}
+
+  solenoid_current = solenoid.readCurrent();
 
   switch (currentMode)
   {
@@ -193,7 +197,6 @@ void loop() {
 
 void precise_mode()
 {
-  solenoid_current = solenoid.readCurrent();
   switch (currentState) {
     case State::KNIFES_OPEN:
       // Wait for start condition
@@ -221,7 +224,6 @@ void precise_mode()
 
 void jitter_mode()
 {
-  solenoid_current = solenoid.readCurrent();
   switch (currentState) {
     case State::KNIFES_OPEN:
 
@@ -250,7 +252,6 @@ void jitter_mode()
 }
 void precise_bouncing_mode()
 {
-  solenoid_current = solenoid.readCurrent();
   switch (currentState) {
     case State::KNIFES_OPEN:
       // Wait for start condition
@@ -289,7 +290,51 @@ void precise_bouncing_mode()
 }
 void real_mode()
 {
-  // To be implemented
+  switch (currentState) {
+    case State::KNIFES_OPEN:
+      panel.setLedError(false);
+      // Wait for start condition
+      if(!bouncing_in_progress)
+      {
+        bouncing_in_progress = true;
+        add_alarm_in_ms(BOUNCE_TIME, bouncing_callback, NULL, false);
+      }
+      if (solenoid_current > CURRENT_TRESHOLD)
+      {
+        bouncing_in_progress = false;
+        solenoid.knifeClosing();
+        if (random(0, 100) > CHANCE_OF_ERROR)
+        {
+          currentState = State::DELAY;
+          startTimerMs(getJitterDelay(knifeDelayMs));
+        }
+        else
+        {
+          currentState = State::KNIFES_CLOSE;
+          bouncing_in_progress = true;
+          panel.setLedError(true);
+        }
+      }
+      break;
+
+    case State::KNIFES_CLOSE:
+      if(!bouncing_in_progress)
+      {
+        bouncing_in_progress = true;
+        add_alarm_in_ms(BOUNCE_TIME, bouncing_callback, NULL, false);
+      }
+      if (solenoid_current < CURRENT_TRESHOLD) // Az odpadne signal knifes enable
+      {
+        bouncing_in_progress = false;
+        solenoid.knifeOpening();
+        currentState = State::DELAY;
+        startTimerMs(getJitterDelay(knifeDelayMs));
+      }
+      break;
+      
+    default:
+      break;
+  }
 }
 
 void display_next_mode()
