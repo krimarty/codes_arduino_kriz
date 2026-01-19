@@ -43,7 +43,7 @@ constexpr float CURRENT_TRESHOLD = 0.13;  // [A] current threshold for knifes ac
 constexpr unsigned int JITTER_RANGE   = 20;  // [%] jitter range for JITTER mode
 constexpr unsigned int MAX_DELAY_MS   = 200; // [ms] maximum delay for knifes activation
 constexpr unsigned int N_OF_BOUNCES   = 3;   // number of bounces for BOUNCING modes
-constexpr unsigned int BOUNCING_TIME = 70;  // [ms] time when bouncing
+constexpr unsigned int BOUNCE_TIME = 20;  // [ms] time between bounces
 
 ControlPanel panel;
 SolenoidModule solenoid;
@@ -52,11 +52,11 @@ ADS1115Module adc;
 bool error = false;
 unsigned int knifeDelayMs = 0;
 float solenoid_current = 0.0;
+unsigned int bounce_count = 0;
+bool bouncing_in_progress = false;
 
 // Timer
 unsigned long startTime = 0;
-volatile bool alarm_fired = false;
-
 
 int calculateKnifeDelayMs(int OldDelayMs)
 {
@@ -71,8 +71,6 @@ int calculateKnifeDelayMs(int OldDelayMs)
 
 int64_t alarm_callback(alarm_id_t id, void *user_data)
 {
-  alarm_fired = true;
-
   if (solenoid.getStatusOfKnifes() == CLOSING)
   {
     solenoid.KnifesClose();
@@ -84,6 +82,49 @@ int64_t alarm_callback(alarm_id_t id, void *user_data)
     solenoid.KnifesOpen();
     panel.setLedStatus(false);
     currentState = State::KNIFES_OPEN;
+  }
+  return 0;
+}
+
+int64_t bouncing_callback(alarm_id_t id, void *user_data)
+{
+  if (solenoid.getStatusOfKnifes() == CLOSING)
+  {
+    if (solenoid.getPositionOfKnifes() == CLOSE)
+    {
+      solenoid.KnifesBeetween();
+      panel.setLedStatus(false);
+    }
+    else
+    {
+      solenoid.KnifesClose();
+      panel.setLedStatus(true);
+    }
+  }
+
+  else
+  {
+    if (solenoid.getPositionOfKnifes() == OPEN)
+    {
+      solenoid.KnifesBeetween();
+      panel.setLedStatus(false);
+    }
+    else
+    {
+      solenoid.KnifesOpen();
+      panel.setLedStatus(false);
+    }
+  }
+
+  bounce_count++;
+
+  if (bounce_count < (N_OF_BOUNCES * 2) && bouncing_in_progress)
+  {
+    add_alarm_in_ms(BOUNCE_TIME, bouncing_callback, NULL, false);
+  }
+  else
+  {
+    bounce_count = 0;
   }
   return 0;
 }
@@ -187,7 +228,6 @@ void jitter_mode()
       // Wait for start condition
       if (solenoid_current > CURRENT_TRESHOLD)
       {
-        Serial.print("Jitter delay time: "); Serial.println(getJitterDelay(knifeDelayMs));
         solenoid.knifeClosing();
         currentState = State::DELAY;
         startTimerMs(getJitterDelay(knifeDelayMs));
@@ -198,7 +238,6 @@ void jitter_mode()
 
       if (solenoid_current < CURRENT_TRESHOLD) // Az odpadne signal knifes enable
       {
-        Serial.print("Jitter delay time: "); Serial.println(getJitterDelay(knifeDelayMs));
         solenoid.knifeOpening();
         currentState = State::DELAY;
         startTimerMs(getJitterDelay(knifeDelayMs));
@@ -211,7 +250,42 @@ void jitter_mode()
 }
 void precise_bouncing_mode()
 {
-  // To be implemented
+  solenoid_current = solenoid.readCurrent();
+  switch (currentState) {
+    case State::KNIFES_OPEN:
+      // Wait for start condition
+      if(!bouncing_in_progress)
+      {
+        bouncing_in_progress = true;
+        add_alarm_in_ms(BOUNCE_TIME, bouncing_callback, NULL, false);
+      }
+      if (solenoid_current > CURRENT_TRESHOLD)
+      {
+        bouncing_in_progress = false;
+        solenoid.knifeClosing();
+        currentState = State::DELAY;
+        startTimerMs(knifeDelayMs);
+      }
+      break;
+
+    case State::KNIFES_CLOSE:
+      if(!bouncing_in_progress)
+      {
+        bouncing_in_progress = true;
+        add_alarm_in_ms(BOUNCE_TIME, bouncing_callback, NULL, false);
+      }
+      if (solenoid_current < CURRENT_TRESHOLD) // Az odpadne signal knifes enable
+      {
+        bouncing_in_progress = false;
+        solenoid.knifeOpening();
+        currentState = State::DELAY;
+        startTimerMs(knifeDelayMs);
+      }
+      break;
+      
+    default:
+      break;
+  }
 }
 void real_mode()
 {

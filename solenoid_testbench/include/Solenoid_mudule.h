@@ -18,6 +18,13 @@ enum status {
   OPENING,
 };
 
+enum pos {
+  OPEN,
+  CLOSE,
+  BETWEEN,
+  ERROR,
+};
+
 
 class SolenoidModule {
     private:
@@ -25,6 +32,7 @@ class SolenoidModule {
     uint8_t _FbPinClose;
     uint8_t _ImeasPin;
     status status_of_knifes;
+    pos position_of_knifes;
 
     static constexpr uint8_t activeLevel(bool active)
     {
@@ -61,40 +69,47 @@ public:
         return status_of_knifes;
     }
 
+    pos getPositionOfKnifes() const
+    {
+        return position_of_knifes;
+    }
+
     void knifeClosing()
     {
         status_of_knifes = CLOSING;
-        digitalWrite(_FbPinOpen, activeLevel(false));
-        digitalWrite(_FbPinClose, activeLevel(false));
+        KnifesBeetween();
     }
 
     void knifeOpening()
     {
         status_of_knifes = OPENING;
-        digitalWrite(_FbPinOpen, activeLevel(false));
-        digitalWrite(_FbPinClose, activeLevel(false));
+        KnifesBeetween();
     }
 
     void KnifesOpen()
     {
+        position_of_knifes = OPEN;
         digitalWrite(_FbPinOpen, activeLevel(true));
         digitalWrite(_FbPinClose, activeLevel(false));
     }
 
     void KnifesClose()
     {
+        position_of_knifes = CLOSE;
         digitalWrite(_FbPinOpen, activeLevel(false));
         digitalWrite(_FbPinClose, activeLevel(true));
     }
 
     void KnifesBeetween()
     {
+        position_of_knifes = BETWEEN;
         digitalWrite(_FbPinOpen, activeLevel(false));
         digitalWrite(_FbPinClose, activeLevel(false));
     }
 
     void KnifesError()
     {
+        position_of_knifes = ERROR;
         digitalWrite(_FbPinOpen, activeLevel(true));
         digitalWrite(_FbPinClose, activeLevel(true));
     }
