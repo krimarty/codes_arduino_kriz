@@ -39,9 +39,9 @@ enum class Modes_Display {
   OFF,
 };
 Modes_Display currentModeDisplay = Modes_Display::OFF;
-
+constexpr float CURRENT_TRESHOLD = 0.13;  // [A] current threshold for knifes activation
 constexpr unsigned int JITTER_RANGE   = 20;  // [%] jitter range for JITTER mode
-constexpr unsigned int MAX_DELAY_MS   = 500; // [ms] maximum delay for knifes activation
+constexpr unsigned int MAX_DELAY_MS   = 200; // [ms] maximum delay for knifes activation
 constexpr unsigned int N_OF_BOUNCES   = 3;   // number of bounces for BOUNCING modes
 constexpr unsigned int BOUNCING_TIME = 70;  // [ms] time when bouncing
 
@@ -50,12 +50,11 @@ SolenoidModule solenoid;
 ADS1115Module adc;
 
 bool error = false;
-int knifeDelayMs = 0;
+unsigned int knifeDelayMs = 0;
 float solenoid_current = 0.0;
 
 // Timer
 unsigned long startTime = 0;
-unsigned long delayTime = knifeDelayMs;
 volatile bool alarm_fired = false;
 
 
@@ -113,9 +112,9 @@ void startTimerMs(uint32_t ms)
 
 
 void setup() {
-  //.begin(115200);
-  //delay(1000);
-  //Serial.println(F("Solenoid Testbench Starting..."));
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println(F("Solenoid Testbench Starting..."));
 
   adc.begin();
   panel.beginDisplay();
@@ -149,40 +148,6 @@ void loop() {
     break;
   }
   
-
-  /*
-  solenoid_current = solenoid.readCurrent();
-  
-  switch (currentState) {
-    case State::WAITING_FOR_START:
-      // Wait for start condition
-      if (solenoid_current > 0.13)
-      {
-        delayTime = knifeDelayMs;
-        solenoid.KnifesBeetween();
-        currentState = State::DELAY;
-        startTimerMs(delayTime);
-      }
-      break;
-
-    case State::DELAY:
-      break;
-
-    case State::ACTIVATE_KNIFES:
-      if (solenoid_current < 0.13) // Az odpadne signal knifes enable
-      {
-        delayTime = knifeDelayMs;
-        solenoid.KnifesBeetween();
-        currentState = State::DELAY_CLOSING;
-        startTimerMs(delayTime);
-      }
-      break;
-
-    case State::DELAY_CLOSING:
-      break;    
-  }
-      */
-
 }
 
 void precise_mode()
@@ -191,22 +156,20 @@ void precise_mode()
   switch (currentState) {
     case State::KNIFES_OPEN:
       // Wait for start condition
-      if (solenoid_current > 0.13)
+      if (solenoid_current > CURRENT_TRESHOLD)
       {
-        delayTime = knifeDelayMs;
         solenoid.knifeClosing();
         currentState = State::DELAY;
-        startTimerMs(delayTime);
+        startTimerMs(knifeDelayMs);
       }
       break;
 
     case State::KNIFES_CLOSE:
-      if (solenoid_current < 0.13) // Az odpadne signal knifes enable
+      if (solenoid_current < CURRENT_TRESHOLD) // Az odpadne signal knifes enable
       {
-        delayTime = knifeDelayMs;
         solenoid.knifeOpening();
         currentState = State::DELAY;
-        startTimerMs(delayTime);
+        startTimerMs(knifeDelayMs);
       }
       break;
       
@@ -217,7 +180,34 @@ void precise_mode()
 
 void jitter_mode()
 {
-  // To be implemented
+  solenoid_current = solenoid.readCurrent();
+  switch (currentState) {
+    case State::KNIFES_OPEN:
+
+      // Wait for start condition
+      if (solenoid_current > CURRENT_TRESHOLD)
+      {
+        Serial.print("Jitter delay time: "); Serial.println(getJitterDelay(knifeDelayMs));
+        solenoid.knifeClosing();
+        currentState = State::DELAY;
+        startTimerMs(getJitterDelay(knifeDelayMs));
+      }
+      break;
+
+    case State::KNIFES_CLOSE:
+
+      if (solenoid_current < CURRENT_TRESHOLD) // Az odpadne signal knifes enable
+      {
+        Serial.print("Jitter delay time: "); Serial.println(getJitterDelay(knifeDelayMs));
+        solenoid.knifeOpening();
+        currentState = State::DELAY;
+        startTimerMs(getJitterDelay(knifeDelayMs));
+      }
+      break;
+      
+    default:
+      break;
+  }
 }
 void precise_bouncing_mode()
 {
@@ -282,13 +272,13 @@ void display_state_machine()
 
   case Modes_Display::SET_MODE:
     if (tmp < 256)
-      currentMode = Modes::PRECISE;
-    else if (tmp < 512)
-      currentMode = Modes::JITTER;
-    else if (tmp < 768)
-      currentMode = Modes::PRECISE_BOUNCING;
-    else
       currentMode = Modes::REAL;
+    else if (tmp < 512)
+      currentMode = Modes::PRECISE_BOUNCING;
+    else if (tmp < 768)
+      currentMode = Modes::JITTER;
+    else
+      currentMode = Modes::PRECISE;
 
     show_mode();
     break;
@@ -325,4 +315,14 @@ void show_mode()
     panel.showMode("Real");
     break;
   }
+}
+
+
+unsigned int getJitterDelay(unsigned int knifeDelayMs) {
+  int jitterPercent = random(-JITTER_RANGE, JITTER_RANGE + 1);
+  int jitterMs = ((int)knifeDelayMs * jitterPercent) / 100;
+
+  int result = (int)knifeDelayMs + jitterMs;
+
+  return (unsigned int)result;
 }

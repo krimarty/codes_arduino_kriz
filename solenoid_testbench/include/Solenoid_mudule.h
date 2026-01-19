@@ -64,15 +64,15 @@ public:
     void knifeClosing()
     {
         status_of_knifes = CLOSING;
-        digitalWrite(_FbPinOpen, activeLevel(true));
-        digitalWrite(_FbPinClose, activeLevel(true));
+        digitalWrite(_FbPinOpen, activeLevel(false));
+        digitalWrite(_FbPinClose, activeLevel(false));
     }
 
     void knifeOpening()
     {
         status_of_knifes = OPENING;
-        digitalWrite(_FbPinOpen, activeLevel(true));
-        digitalWrite(_FbPinClose, activeLevel(true));
+        digitalWrite(_FbPinOpen, activeLevel(false));
+        digitalWrite(_FbPinClose, activeLevel(false));
     }
 
     void KnifesOpen()
