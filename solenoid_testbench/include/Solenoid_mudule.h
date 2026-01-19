@@ -13,11 +13,18 @@ constexpr int   ADC_RES     = 1023;
 constexpr float SENSOR_ZERO = 0.1 * VREF;
 constexpr float SENSITIVITY = 0.2;    // TMCS1107A3U 200 mV/A
 
+enum status {
+  CLOSING,
+  OPENING,
+};
+
+
 class SolenoidModule {
-private:
+    private:
     uint8_t _FbPinOpen;
     uint8_t _FbPinClose;
     uint8_t _ImeasPin;
+    status status_of_knifes;
 
     static constexpr uint8_t activeLevel(bool active)
     {
@@ -47,6 +54,25 @@ public:
     float readCurrent() const {
         float voltage = readVoltage();
         return (voltage - SENSOR_ZERO) / SENSITIVITY;
+    }
+
+    status getStatusOfKnifes() const
+    {
+        return status_of_knifes;
+    }
+
+    void knifeClosing()
+    {
+        status_of_knifes = CLOSING;
+        digitalWrite(_FbPinOpen, activeLevel(true));
+        digitalWrite(_FbPinClose, activeLevel(true));
+    }
+
+    void knifeOpening()
+    {
+        status_of_knifes = OPENING;
+        digitalWrite(_FbPinOpen, activeLevel(true));
+        digitalWrite(_FbPinClose, activeLevel(true));
     }
 
     void KnifesOpen()
