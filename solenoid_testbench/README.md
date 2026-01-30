@@ -1,4 +1,4 @@
-# Treadmill sideshift module – software
+# Solenoid testbench
 
 
 ## Authors

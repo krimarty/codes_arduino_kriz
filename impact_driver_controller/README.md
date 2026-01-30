@@ -1,4 +1,4 @@
-# Treadmill sideshift module – software
+# Impact driver controller
 
 
 ## Authors
